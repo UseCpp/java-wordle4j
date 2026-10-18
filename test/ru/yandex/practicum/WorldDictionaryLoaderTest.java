@@ -23,7 +23,8 @@ public class WorldDictionaryLoaderTest {
 
     @BeforeEach
     void setUp() {
-        Logger logger = message -> {};
+        Logger logger = message -> {
+        };
         loader = new WordleDictionaryLoader(logger);
     }
 

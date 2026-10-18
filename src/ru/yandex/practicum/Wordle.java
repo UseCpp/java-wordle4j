@@ -16,7 +16,7 @@ public class Wordle {
 
 
     public static void main(String[] args) {
-        try(LoggerImpl logger = new LoggerImpl(LOG_FILE)) {
+        try (LoggerImpl logger = new LoggerImpl(LOG_FILE)) {
             WordleDictionary dictionary = new WordleDictionaryLoader(logger).load(DICTIONARY_FILE);
             if (dictionary.size() == 0) {
                 System.out.println("Не удалось загрузить базу данных слов.");

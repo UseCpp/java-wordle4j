@@ -25,7 +25,8 @@ public class WordleGameTest {
         try {
             game.initSession();
             game.processInput("слово");
-        } catch (WordleGameException ignored) {}
+        } catch (WordleGameException ignored) {
+        }
         Assertions.assertTrue(game.win());
         Assertions.assertFalse(game.canPlay());
     }

@@ -20,7 +20,7 @@ public class WordleDictionaryLoader {
     WordleDictionary load(String fileName) throws LoggerIOException {
         WordleDictionary result = new WordleDictionary();
 
-        try(BufferedReader reader = new BufferedReader(new FileReader(fileName, StandardCharsets.UTF_8))) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(fileName, StandardCharsets.UTF_8))) {
             while (reader.ready()) {
                 result.add(reader.readLine());
             }
