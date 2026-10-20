@@ -6,7 +6,7 @@ import java.util.stream.Stream;
 
 public class WordleDictionary {
 
-    private static final int WORD_LENGTH = 5;
+    public static final int WORD_LENGTH = 5;
 
     private final List<String> words = new ArrayList<>();
 

@@ -3,6 +3,7 @@ package ru.yandex.practicum;
 import ru.yandex.practicum.wordle.WordleGame;
 import ru.yandex.practicum.wordle.WordleGameException;
 import ru.yandex.practicum.wordle.WordNotFoundInDictionary;
+import ru.yandex.practicum.wordle.WordInvalidFormat;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -44,8 +45,8 @@ public class Wordle {
             String userInput = scanner.nextLine();
             try {
                 System.out.println(game.processInput(userInput));
-            } catch (WordNotFoundInDictionary e) {
-                System.out.println("Слово " + userInput + " не существует.");
+            } catch (WordNotFoundInDictionary | WordInvalidFormat e) {
+                System.out.println(e.getMessage());
             }
         }
 

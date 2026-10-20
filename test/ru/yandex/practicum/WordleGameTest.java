@@ -35,7 +35,7 @@ public class WordleGameTest {
     public void when_noExistWordInput_thenException() {
         WordleGame game = new WordleGame(dictionaryOf("слово"), new Random());
         game.initSession();
-        Assertions.assertThrows(WordNotFoundInDictionary.class, () -> game.processInput("что-то"));
+        Assertions.assertThrows(WordNotFoundInDictionary.class, () -> game.processInput("какао"));
     }
 
     @Test
@@ -63,10 +63,10 @@ public class WordleGameTest {
         var output = game.processInput("аяяяя");
         Assertions.assertEquals("+----", output.mask());
         output = game.processInput("ааааа");
-        Assertions.assertEquals("+^^^^", output.mask());
+        Assertions.assertEquals("+----", output.mask());
 
         output = game.processInput("арааа");
-        Assertions.assertEquals("++^^^", output.mask());
+        Assertions.assertEquals("++---", output.mask());
         output = game.processInput("арбуз");
         Assertions.assertEquals("+++++", output.mask());
     }
@@ -85,4 +85,47 @@ public class WordleGameTest {
         Assertions.assertThrows(WordleUnexpectedInput.class, () -> game.processInput(""));
     }
 
+
+    private static WordleGame gameWithAnswer(String answer, String... words) {
+        WordleDictionary dictionary = dictionaryOf(words);
+        dictionary.add(answer);
+        WordleGame game = new WordleGame(dictionary, new Random() {
+            @Serial
+            private static final long serialVersionUID = 6150264817394527701L;
+
+            @Override
+            public int nextInt(int bound) {
+                return bound == dictionary.size() ? (dictionary.size() - 1) : 0;
+            }
+        });
+        game.initSession();
+        return game;
+    }
+
+    @Test
+    public void hint_respectsPresentLetterAndItsForbiddenPosition() throws WordleGameException {
+        WordleGame game = gameWithAnswer("арбуз", "бочка", "барон", "шумер", "абрис");
+        Assertions.assertEquals("^---^", game.processInput("бочка").mask());
+        Assertions.assertEquals("абрис", game.processInput("").input());
+    }
+
+    @Test
+    public void hint_respectsLetterCount() throws WordleGameException {
+        WordleGame game = gameWithAnswer("валет", "лапта", "балда", "салат");
+        Assertions.assertEquals("^+-^-", game.processInput("лапта").mask());
+        Assertions.assertEquals("валет", game.processInput("").input());
+    }
+
+    @Test
+    public void hint_whenAllLettersFoundByDifferentWords_thenSuggestsAnswer() throws WordleGameException {
+        String[] guesses = {"аяяяя", "яряяя", "яябяя", "яяяуя", "яяяяз"};
+        WordleGame game = gameWithAnswer("арбуз", guesses);
+        for (int i = 0; i < guesses.length; i++) {
+            var sb = new StringBuilder("-----");
+            sb.setCharAt(i, '+');
+            Assertions.assertEquals(sb.toString(), game.processInput(guesses[i]).mask());
+        }
+        Assertions.assertEquals("арбуз", game.processInput("").input());
+        Assertions.assertTrue(game.win());
+    }
 }

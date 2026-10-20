@@ -2,15 +2,28 @@ package ru.yandex.practicum.wordle;
 
 import ru.yandex.practicum.WordleDictionary;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class WordleGame {
+
+    public static final int MAX_STEPS = 6;
+
+    public static final char MASK_EXACT = '+';
+    public static final char MASK_PRESENT = '^';
+    public static final char MASK_ABSENT = '-';
+
+    public enum State {
+        NOT_STARTED,
+        IN_PROGRESS,
+        WIN, LOSE
+    }
 
     public record ProcessedInput(String input, String mask) {
         @Override
@@ -19,21 +32,15 @@ public class WordleGame {
         }
     }
 
-    private String answer;
-
-    private Set<Character> answerCharacters;
-
-    private Set<String> userInputs;
-
-    private Set<Character> notValidChars;
-
-    private Character[] userMask;
-
-    private int steps;
-
     private final WordleDictionary dictionary;
-
     private final Random random;
+
+    private State state = State.NOT_STARTED;
+    private String answer;
+    private int steps;
+    private Set<String> userInputs;
+    private WordleUserKnownInformation knownInformation;
+    private List<String> candidates;
 
     public WordleGame(WordleDictionary dictionary, Random random) {
         this.dictionary = dictionary;
@@ -42,105 +49,93 @@ public class WordleGame {
 
     public void initSession() {
         answer = dictionary.get(random.nextInt(dictionary.size()));
-        answerCharacters = getCharacterSet(answer);
-        steps = 6;
-        userInputs = new HashSet<>();
-        userMask = new Character[answer.length()];
-        Arrays.fill(userMask, '-');
-        notValidChars = new HashSet<>();
+        steps = MAX_STEPS;
+        userInputs = new LinkedHashSet<>();
+        knownInformation = new WordleUserKnownInformation(WordleDictionary.WORD_LENGTH);
+        candidates = dictionary.stream().collect(Collectors.toCollection(ArrayList::new));
+        state = State.IN_PROGRESS;
     }
 
-    public ProcessedInput processInput(String userInput) throws WordleGameException {
-        if (!canPlay()) {
-            throw new WordleUnexpectedInput("Неожиданный ввод в законченную игру. Перезапустите сессию.");
+    public ProcessedInput processInput(String word) throws WordleGameException {
+        if (state != State.IN_PROGRESS) {
+            throw new WordleUnexpectedInput(state == State.NOT_STARTED
+                    ? "Игра ещё не начата. Ввод невозможен."
+                    : "Игра уже завершена. Перезапустите сессию.");
         }
 
-        userInput = WordleDictionary.normalize(userInput);
-
-        if (userInput.isEmpty()) {
-            userInput = getAssistantWord();
-        }
-
-        if (dictionary.contains(userInput)) {
-            steps--;
+        if (word.isEmpty()) {
+            word = candidates.get(random.nextInt(candidates.size()));
         } else {
-            throw new WordNotFoundInDictionary(userInput);
-        }
-        userInputs.add(userInput);
-
-        if (userInput.equals(answer)) {
-            steps = 0;
+            validate(word);
         }
 
-        return new ProcessedInput(userInput, formMask(userInput));
+        String mask = formMask(word);
+        steps--;
+        userInputs.add(word);
+        knownInformation.analyze(word, mask);
+        candidates.removeIf(candidate -> userInputs.contains(candidate) || !knownInformation.matches(candidate));
+
+        if (word.equals(answer)) {
+            state = State.WIN;
+        } else if (steps == 0) {
+            state = State.LOSE;
+        }
+        return new ProcessedInput(word, mask);
     }
 
-    private String getAssistantWord() {
-        var potentialWords = dictionary.stream()
-                .filter(Predicate.not(userInputs::contains))
-                .filter(str -> Collections.disjoint(getCharacterSet(str), notValidChars))
-                .filter(this::validByMask)
-                .toList();
-
-        for (int i = 0; i < userMask.length; i++) {
-            if (userMask[i] == '-') {
-                for (var word : potentialWords) {
-                    if (word.charAt(i) == answer.charAt(i)) {
-                        return word;
-                    }
-                }
+    private void validate(String word) throws WordleGameException {
+        if (word.length() != WordleDictionary.WORD_LENGTH) {
+            throw new WordInvalidFormat("Слово должно состоять из " + WordleDictionary.WORD_LENGTH + " букв");
+        }
+        for (int i = 0; i < word.length(); i++) {
+            char smb = word.charAt(i);
+            if (smb < 'а' || smb > 'я') {
+                throw new WordInvalidFormat("Слово должно состоять только из русских букв");
             }
         }
-        throw new IllegalStateException();
-    }
-
-    private boolean validByMask(String word) {
-        for (int i = 0; i < userMask.length; i++) {
-            var smb = userMask[i];
-            if (smb == answer.charAt(i) && word.charAt(i) != smb) {
-                return false;
-            }
+        if (!word.equals(answer) && !dictionary.contains(word)) {
+            throw new WordNotFoundInDictionary("Слова \"" + word + "\" нет в словаре");
         }
-        return true;
     }
 
-    private Set<Character> getCharacterSet(String word) {
-        return word.chars().mapToObj(c -> (char) c).collect(Collectors.toSet());
-    }
-
-    private String formMask(String userInput) {
-        StringBuilder maskBuilder = new StringBuilder();
-        for (int i = 0; i < userInput.length(); i++) {
-            char smb = userInput.charAt(i);
-            if (smb == answer.charAt(i)) {
-                maskBuilder.append("+");
-                userMask[i] = smb;
+    private String formMask(String word) {
+        char[] mask = new char[word.length()];
+        Map<Character, Integer> unmatched = new HashMap<>();
+        for (int i = 0; i < word.length(); i++) {
+            if (word.charAt(i) == answer.charAt(i)) {
+                mask[i] = MASK_EXACT;
             } else {
-                if (answerCharacters.contains(smb)) {
-                    maskBuilder.append("^");
+                unmatched.merge(answer.charAt(i), 1, Integer::sum);
+            }
+        }
+        for (int i = 0; i < word.length(); i++) {
+            if (mask[i] != MASK_EXACT) {
+                char smb = word.charAt(i);
+                int left = unmatched.getOrDefault(smb, 0);
+                if (left > 0) {
+                    mask[i] = MASK_PRESENT;
+                    unmatched.put(smb, left - 1);
                 } else {
-                    maskBuilder.append("-");
-                    notValidChars.add(smb);
+                    mask[i] = MASK_ABSENT;
                 }
             }
         }
-        return maskBuilder.toString();
+        return new String(mask);
     }
-
 
     public int getSteps() {
         return steps;
     }
 
     public boolean canPlay() {
-        return steps > 0;
+        return state == State.IN_PROGRESS;
+    }
+
+    public boolean win() {
+        return state == State.WIN;
     }
 
     public String getAnswer() {
         return answer;
-    }
-
-    public boolean win() {
-        return userInputs.contains(answer);
     }
 }
