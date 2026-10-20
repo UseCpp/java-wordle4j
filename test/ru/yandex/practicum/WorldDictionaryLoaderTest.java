@@ -3,9 +3,10 @@ package ru.yandex.practicum;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import ru.yandex.practicum.logger.Logger;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,9 +24,11 @@ public class WorldDictionaryLoaderTest {
 
     @BeforeEach
     void setUp() {
-        Logger logger = message -> {
+        OutputStream stream = new OutputStream() {
+            @Override
+            public void write(int b) {}
         };
-        loader = new WordleDictionaryLoader(logger);
+        loader = new WordleDictionaryLoader(new PrintWriter(stream));
     }
 
     private Path writeFile(String name, String content) throws IOException {
